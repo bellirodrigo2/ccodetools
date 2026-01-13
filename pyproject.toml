@@ -12,7 +12,8 @@ dependencies = [
     "mcp",
     "tree-sitter",
     "tree-sitter-c",
-    "click"
+    "click",
+    "clang"
 ]
 
 [project.optional-dependencies]

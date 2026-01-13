@@ -2,7 +2,7 @@
 import unittest
 import os
 from src.ccodetools.impl.tree_sitter import TreeSitterAnalyzer
-from src.ccodetools.interface import FunctionInfo, PreprocessorDirective
+# from src.ccodetools.impl.clang_analyzer import ClangAnalyzer
 
 
 class TestTreeSitterAnalyzer(unittest.TestCase):
