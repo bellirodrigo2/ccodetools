@@ -51,3 +51,41 @@ class CCodeAnalyzer(Protocol):
     def get_preprocessor_directives(self, file_path: str) -> dict[str, list[PreprocessorDirective]]:
         """Returns all preprocessor directives"""
         ...
+
+    # ===== CAMADA 1 – NOVAS =====
+
+    def get_call_graph(self, file_path: str) -> dict[str, list[str]]:
+        """Return call graph per function"""
+        ...
+
+    def get_function_dependencies(
+        self, file_path: str, function_name: str
+    ) -> dict[str, Any]:
+        """Return structural dependencies of a function"""
+        ...
+
+    def summarize_function(
+        self, file_path: str, function_name: str
+    ) -> dict[str, Any]:
+        """Return heuristic structural summary of a function"""
+        ...
+
+    def list_globals(self, file_path: str) -> list[dict[str, Any]]:
+        """List global variables"""
+        ...
+
+    def find_symbol(self, file_path: str, symbol: str) -> dict[str, Any]:
+        """Find symbol occurrences in file"""
+        ...
+
+    def get_error_handling_paths(
+        self, file_path: str, function_name: str
+    ) -> list[dict[str, Any]]:
+        """Detect error-handling patterns in a function"""
+        ...
+
+    def list_side_effects(
+        self, file_path: str, function_name: str
+    ) -> dict[str, Any]:
+        """List side effects of a function"""
+        ...

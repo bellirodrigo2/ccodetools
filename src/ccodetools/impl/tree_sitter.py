@@ -309,3 +309,220 @@ class TreeSitterAnalyzer(CCodeAnalyzer):
         
         traverse(tree.root_node)
         return typedefs
+    
+    def _walk(self, node):
+        yield node
+        for child in node.children:
+            yield from self._walk(child)
+
+    def get_call_graph(self, file_path: str) -> dict[str, list[str]]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+
+        call_graph: dict[str, set[str]] = {}
+
+        def traverse(node, current_function=None):
+            if node.type == "function_definition":
+                declarator = node.child_by_field_name("declarator")
+                name_node = self._get_function_name(declarator)
+                if name_node:
+                    current_function = name_node.text.decode()
+                    call_graph.setdefault(current_function, set())
+
+            if node.type == "call_expression" and current_function:
+                fn = node.child_by_field_name("function")
+                if fn and fn.type == "identifier":
+                    call_graph[current_function].add(fn.text.decode())
+
+            for child in node.children:
+                traverse(child, current_function)
+
+        traverse(tree.root_node)
+        return {k: sorted(v) for k, v in call_graph.items()}
+
+    def get_function_dependencies(self, file_path: str, function_name: str) -> dict[str, Any]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+
+        deps = {
+            "function": function_name,
+            "calls": set(),
+            "types": set(),
+            "macros": set(),
+        }
+
+        def traverse(node, active=False):
+            if node.type == "function_definition":
+                declarator = node.child_by_field_name("declarator")
+                name_node = self._get_function_name(declarator)
+                active = name_node and name_node.text.decode() == function_name
+
+            if not active:
+                return
+
+            if node.type == "call_expression":
+                fn = node.child_by_field_name("function")
+                if fn and fn.type == "identifier":
+                    deps["calls"].add(fn.text.decode())
+
+            if node.type == "type_identifier":
+                deps["types"].add(node.text.decode())
+
+            if node.type == "identifier" and node.text.decode().isupper():
+                deps["macros"].add(node.text.decode())
+
+            for child in node.children:
+                traverse(child, active)
+
+        traverse(tree.root_node)
+        return {k: sorted(v) if isinstance(v, set) else v for k, v in deps.items()}
+
+    def summarize_function(self, file_path: str, function_name: str) -> dict[str, Any]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+
+        summary = {
+            "function": function_name,
+            "allocates_memory": False,
+            "frees_memory": False,
+            "multiple_returns": False,
+            "uses_goto": False,
+        }
+
+        return_count = 0
+
+        def traverse(node, active=False):
+            nonlocal return_count
+
+            if node.type == "function_definition":
+                declarator = node.child_by_field_name("declarator")
+                name_node = self._get_function_name(declarator)
+                active = name_node and name_node.text.decode() == function_name
+
+            if not active:
+                return
+
+            if node.type == "call_expression":
+                fn = node.child_by_field_name("function")
+                if fn and fn.type == "identifier":
+                    name = fn.text.decode()
+                    if name == "malloc":
+                        summary["allocates_memory"] = True
+                    if name == "free":
+                        summary["frees_memory"] = True
+
+            if node.type == "return_statement":
+                return_count += 1
+                if return_count > 1:
+                    summary["multiple_returns"] = True
+
+            if node.type == "goto_statement":
+                summary["uses_goto"] = True
+
+            for child in node.children:
+                traverse(child, active)
+
+        traverse(tree.root_node)
+        return summary
+
+    def list_globals(self, file_path: str) -> list[dict[str, Any]]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+
+        globals_ = []
+
+        for node in tree.root_node.children:
+            if node.type == "declaration":
+                declarator = node.child_by_field_name("declarator")
+                if declarator:
+                    globals_.append({
+                        "name": declarator.text.decode(),
+                        "line": node.start_point[0] + 1
+                    })
+
+        return globals_
+
+    def find_symbol(self, file_path: str, symbol: str) -> dict[str, Any]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+    
+        result = {
+            "symbol": symbol,
+            "lines": []
+        }
+    
+        for node in self._walk(tree.root_node):
+            if node.type == "identifier" and node.text.decode() == symbol:
+                result["lines"].append(node.start_point[0] + 1)
+    
+        return result
+    
+    def get_error_handling_paths(self, file_path: str, function_name: str) -> list[dict[str, Any]]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+    
+        errors = []
+    
+        def traverse(node, active=False):
+            if node.type == "function_definition":
+                declarator = node.child_by_field_name("declarator")
+                name_node = self._get_function_name(declarator)
+                active = name_node and name_node.text.decode() == function_name
+    
+            if not active:
+                return
+    
+            if node.type == "return_statement":
+                errors.append({
+                    "line": node.start_point[0] + 1,
+                    "type": "return"
+                })
+    
+            if node.type == "goto_statement":
+                errors.append({
+                    "line": node.start_point[0] + 1,
+                    "type": "goto"
+                })
+    
+            for child in node.children:
+                traverse(child, active)
+    
+        traverse(tree.root_node)
+        return errors
+    
+    def list_side_effects(self, file_path: str, function_name: str) -> dict[str, Any]:
+        content, _ = self._read_file(file_path)
+        tree = self.parser.parse(content)
+    
+        effects = {
+            "io": set(),
+            "allocates_memory": False
+        }
+    
+        io_calls = {"printf", "write", "send"}
+    
+        def traverse(node, active=False):
+            if node.type == "function_definition":
+                declarator = node.child_by_field_name("declarator")
+                name_node = self._get_function_name(declarator)
+                active = name_node and name_node.text.decode() == function_name
+    
+            if not active:
+                return
+    
+            if node.type == "call_expression":
+                fn = node.child_by_field_name("function")
+                if fn and fn.type == "identifier":
+                    name = fn.text.decode()
+                    if name in io_calls:
+                        effects["io"].add(name)
+                    if name == "malloc":
+                        effects["allocates_memory"] = True
+    
+            for child in node.children:
+                traverse(child, active)
+    
+        traverse(tree.root_node)
+        effects["io"] = sorted(effects["io"])
+        return effects
+    
