@@ -7,28 +7,29 @@ name = "c-code-analyzer-mcp"
 version = "0.1.0"
 description = "MCP server for efficient C code analysis using tree-sitter"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.0.0",
-    "tree-sitter>=0.23.0",
-    "tree-sitter-c>=0.23.0",
+    "mcp",
+    "tree-sitter",
+    "tree-sitter-c",
+    "click"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
-    "mypy>=1.8.0",
+    "pytest",
 ]
 
 [project.scripts]
 c-code-analyzer = "ccodetools.server:main"
+cli = "ccodetools.cli:cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["ccodetools", "ccodetools.impl"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
