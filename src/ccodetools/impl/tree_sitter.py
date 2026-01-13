@@ -1,9 +1,11 @@
 from typing import Any
-from ..interface import CCodeAnalyzer, AnalysisResult, FunctionInfo, PreprocessorDirective
+from ..interface import AnalysisResult, FunctionInfo, PreprocessorDirective
+from .base import BaseAnalyzer
 
-class TreeSitterAnalyzer(CCodeAnalyzer):
+
+class TreeSitterAnalyzer(BaseAnalyzer):
     """Implementation using tree-sitter"""
-    
+
     def __init__(self)->None:
         try:
             from tree_sitter import Language, Parser
@@ -16,13 +18,6 @@ class TreeSitterAnalyzer(CCodeAnalyzer):
                 "tree-sitter is not installed. Execute: "
                 "pip install tree-sitter tree-sitter-c"
             )
-    
-    def _read_file(self, file_path: str) -> tuple[str, list[str]]:
-        """Read file and return content and lines"""
-        with open(file_path, 'rb') as f:
-            content = f.read()
-        lines = content.decode('utf-8').split('\n')
-        return content, lines
     
     def _extract_comment_before(self, lines: list[str], line_num: int) -> str | None:
         """Extract comment immediately before a line"""

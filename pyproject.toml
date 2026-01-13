@@ -13,10 +13,13 @@ dependencies = [
     "tree-sitter",
     "tree-sitter-c",
     "click",
-    "clang"
 ]
 
 [project.optional-dependencies]
+clang = [
+    "clang==15.*"
+]
+
 dev = [
     "pytest",
 ]

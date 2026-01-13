@@ -2,11 +2,10 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 import mcp.server.stdio
 from .interface import CCodeAnalyzer
-from .impl.tree_sitter import TreeSitterAnalyzer
+from .factory import make_analyzer
 import json
 
-# Inicializa analyzer (pode trocar para ClangAnalyzer quando implementado)
-analyzer: CCodeAnalyzer = TreeSitterAnalyzer()
+analyzer: CCodeAnalyzer = make_analyzer('tree-sitter')
 
 app = Server("c-code-analyzer")
 
@@ -14,8 +13,6 @@ app = Server("c-code-analyzer")
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     return [
-        # ===== EXISTENTES =====
-
         Tool(
             name="analyze_c_file",
             description="Analisa um arquivo C e retorna estrutura completa",
@@ -65,96 +62,94 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
-        # ===== CAMADA 1 (tree-sitter) =====
+        # Tool(
+        #     name="get_call_graph",
+        #     description="Retorna o grafo de chamadas por função",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #         },
+        #         "required": ["file_path"]
+        #     }
+        # ),
 
-        Tool(
-            name="get_call_graph",
-            description="Retorna o grafo de chamadas por função",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                },
-                "required": ["file_path"]
-            }
-        ),
+        # Tool(
+        #     name="get_function_dependencies",
+        #     description="Retorna dependências estruturais de uma função",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #             "function_name": {"type": "string"},
+        #         },
+        #         "required": ["file_path", "function_name"]
+        #     }
+        # ),
 
-        Tool(
-            name="get_function_dependencies",
-            description="Retorna dependências estruturais de uma função",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                    "function_name": {"type": "string"},
-                },
-                "required": ["file_path", "function_name"]
-            }
-        ),
+        # Tool(
+        #     name="summarize_function",
+        #     description="Resumo estrutural heurístico de uma função",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #             "function_name": {"type": "string"},
+        #         },
+        #         "required": ["file_path", "function_name"]
+        #     }
+        # ),
 
-        Tool(
-            name="summarize_function",
-            description="Resumo estrutural heurístico de uma função",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                    "function_name": {"type": "string"},
-                },
-                "required": ["file_path", "function_name"]
-            }
-        ),
+        # Tool(
+        #     name="list_globals",
+        #     description="Lista variáveis globais do arquivo",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #         },
+        #         "required": ["file_path"]
+        #     }
+        # ),
 
-        Tool(
-            name="list_globals",
-            description="Lista variáveis globais do arquivo",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                },
-                "required": ["file_path"]
-            }
-        ),
+        # Tool(
+        #     name="find_symbol",
+        #     description="Busca ocorrências de um símbolo no arquivo",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #             "symbol": {"type": "string"},
+        #         },
+        #         "required": ["file_path", "symbol"]
+        #     }
+        # ),
 
-        Tool(
-            name="find_symbol",
-            description="Busca ocorrências de um símbolo no arquivo",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                    "symbol": {"type": "string"},
-                },
-                "required": ["file_path", "symbol"]
-            }
-        ),
+        # Tool(
+        #     name="get_error_handling_paths",
+        #     description="Detecta caminhos de erro em uma função",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #             "function_name": {"type": "string"},
+        #         },
+        #         "required": ["file_path", "function_name"]
+        #     }
+        # ),
 
-        Tool(
-            name="get_error_handling_paths",
-            description="Detecta caminhos de erro em uma função",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                    "function_name": {"type": "string"},
-                },
-                "required": ["file_path", "function_name"]
-            }
-        ),
-
-        Tool(
-            name="list_side_effects",
-            description="Lista efeitos colaterais de uma função",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string"},
-                    "function_name": {"type": "string"},
-                },
-                "required": ["file_path", "function_name"]
-            }
-        ),
+        # Tool(
+        #     name="list_side_effects",
+        #     description="Lista efeitos colaterais de uma função",
+        #     inputSchema={
+        #         "type": "object",
+        #         "properties": {
+        #             "file_path": {"type": "string"},
+        #             "function_name": {"type": "string"},
+        #         },
+        #         "required": ["file_path", "function_name"]
+        #     }
+        # ),
     ]
 
 
@@ -191,85 +186,83 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 text=json.dumps(directives, default=lambda o: o.__dict__, indent=2)
             )]
 
-        # ===== CAMADA 1 =====
+        # elif name == "get_call_graph":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.get_call_graph(arguments["file_path"]),
+        #             indent=2
+        #         )
+        #     )]
 
-        elif name == "get_call_graph":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.get_call_graph(arguments["file_path"]),
-                    indent=2
-                )
-            )]
+        # elif name == "get_function_dependencies":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.get_function_dependencies(
+        #                 arguments["file_path"],
+        #                 arguments["function_name"]
+        #             ),
+        #             indent=2
+        #         )
+        #     )]
 
-        elif name == "get_function_dependencies":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.get_function_dependencies(
-                        arguments["file_path"],
-                        arguments["function_name"]
-                    ),
-                    indent=2
-                )
-            )]
+        # elif name == "summarize_function":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.summarize_function(
+        #                 arguments["file_path"],
+        #                 arguments["function_name"]
+        #             ),
+        #             indent=2
+        #         )
+        #     )]
 
-        elif name == "summarize_function":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.summarize_function(
-                        arguments["file_path"],
-                        arguments["function_name"]
-                    ),
-                    indent=2
-                )
-            )]
+        # elif name == "list_globals":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.list_globals(arguments["file_path"]),
+        #             indent=2
+        #         )
+        #     )]
 
-        elif name == "list_globals":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.list_globals(arguments["file_path"]),
-                    indent=2
-                )
-            )]
+        # elif name == "find_symbol":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.find_symbol(
+        #                 arguments["file_path"],
+        #                 arguments["symbol"]
+        #             ),
+        #             indent=2
+        #         )
+        #     )]
 
-        elif name == "find_symbol":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.find_symbol(
-                        arguments["file_path"],
-                        arguments["symbol"]
-                    ),
-                    indent=2
-                )
-            )]
+        # elif name == "get_error_handling_paths":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.get_error_handling_paths(
+        #                 arguments["file_path"],
+        #                 arguments["function_name"]
+        #             ),
+        #             indent=2
+        #         )
+        #     )]
 
-        elif name == "get_error_handling_paths":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.get_error_handling_paths(
-                        arguments["file_path"],
-                        arguments["function_name"]
-                    ),
-                    indent=2
-                )
-            )]
-
-        elif name == "list_side_effects":
-            return [TextContent(
-                type="text",
-                text=json.dumps(
-                    analyzer.list_side_effects(
-                        arguments["file_path"],
-                        arguments["function_name"]
-                    ),
-                    indent=2
-                )
-            )]
+        # elif name == "list_side_effects":
+        #     return [TextContent(
+        #         type="text",
+        #         text=json.dumps(
+        #             analyzer.list_side_effects(
+        #                 arguments["file_path"],
+        #                 arguments["function_name"]
+        #             ),
+        #             indent=2
+        #         )
+        #     )]
 
         else:
             raise ValueError(f"Tool desconhecida: {name}")

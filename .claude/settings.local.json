@@ -10,7 +10,11 @@
       "Bash(powershell:*)",
       "Bash(python -c:*)",
       "Bash(python -m pytest:*)",
-      "Bash(python -m unittest:*)"
+      "Bash(python -m unittest:*)",
+      "Bash(find:*)",
+      "mcp__ccodetools__list_functions",
+      "mcp__ccodetools__get_function_body",
+      "mcp__ccodetools__get_preprocessor_directives"
     ]
   }
 }

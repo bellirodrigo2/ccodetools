@@ -4,21 +4,7 @@ from pprint import pprint
 from dataclasses import asdict, is_dataclass
 
 from .impl.tree_sitter import TreeSitterAnalyzer
-
-
-# Registry de analyzers
-ANALYZERS = {
-    "tree_sitter": TreeSitterAnalyzer,
-}
-
-
-def get_analyzer(name: str):
-    if name not in ANALYZERS:
-        raise click.ClickException(
-            f"Analyzer '{name}' não encontrado. "
-            f"Disponíveis: {', '.join(ANALYZERS.keys())}"
-        )
-    return ANALYZERS[name]()
+from .factory import make_analyzer
 
 
 def serialize(obj):
@@ -35,14 +21,14 @@ def serialize(obj):
 @click.group()
 @click.option(
     "--analyzer",
-    default="tree_sitter",
+    default="tree-sitter",
     help="Nome do analyzer a usar"
 )
 @click.pass_context
 def cli(ctx, analyzer):
     """CLI para análise de código C"""
     ctx.ensure_object(dict)
-    ctx.obj["analyzer"] = get_analyzer(analyzer)
+    ctx.obj["analyzer"] = make_analyzer(analyzer)
 
 
 # -------------------------------------------------

@@ -1,0 +1,14 @@
+adicionar novas ferramentas no cli e server
+fazer funcionar clanganalyzer
+
+
+read 
+ '/home/user/ccodetools/src/ccodetools/interface.py' 
+ '/home/user/ccodetools/src/ccodetools/impl/tree_sitter.py'
+ '/home/user/ccodetools/src/ccodetools/impl/clang_analyzer.py'
+
+ your task:
+- common tasks should be implemented in a base class (if there are common tasks. read_file ????)
+- clanganalyzer should implemented the interface defined in interface.py
+-give me a factory for analyzers that returns the correct implementation based on a parameter
+- the tests on  '/home/user/ccodetools/tests/test_tree_sitter_analyzer.py', should be changed to avoid testing implementation details, only interface functions, and should be applied on both analyzers
