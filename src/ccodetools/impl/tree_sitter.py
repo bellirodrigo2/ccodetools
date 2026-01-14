@@ -352,19 +352,17 @@ class TreeSitterAnalyzer(BaseAnalyzer):
                 name_node = self._get_function_name(declarator)
                 active = name_node and name_node.text.decode() == function_name
 
-            if not active:
-                return
+            if active:
+                if node.type == "call_expression":
+                    fn = node.child_by_field_name("function")
+                    if fn and fn.type == "identifier":
+                        deps["calls"].add(fn.text.decode())
 
-            if node.type == "call_expression":
-                fn = node.child_by_field_name("function")
-                if fn and fn.type == "identifier":
-                    deps["calls"].add(fn.text.decode())
+                if node.type == "type_identifier":
+                    deps["types"].add(node.text.decode())
 
-            if node.type == "type_identifier":
-                deps["types"].add(node.text.decode())
-
-            if node.type == "identifier" and node.text.decode().isupper():
-                deps["macros"].add(node.text.decode())
+                if node.type == "identifier" and node.text.decode().isupper():
+                    deps["macros"].add(node.text.decode())
 
             for child in node.children:
                 traverse(child, active)
@@ -394,25 +392,23 @@ class TreeSitterAnalyzer(BaseAnalyzer):
                 name_node = self._get_function_name(declarator)
                 active = name_node and name_node.text.decode() == function_name
 
-            if not active:
-                return
+            if active:
+                if node.type == "call_expression":
+                    fn = node.child_by_field_name("function")
+                    if fn and fn.type == "identifier":
+                        name = fn.text.decode()
+                        if name == "malloc":
+                            summary["allocates_memory"] = True
+                        if name == "free":
+                            summary["frees_memory"] = True
 
-            if node.type == "call_expression":
-                fn = node.child_by_field_name("function")
-                if fn and fn.type == "identifier":
-                    name = fn.text.decode()
-                    if name == "malloc":
-                        summary["allocates_memory"] = True
-                    if name == "free":
-                        summary["frees_memory"] = True
+                if node.type == "return_statement":
+                    return_count += 1
+                    if return_count > 1:
+                        summary["multiple_returns"] = True
 
-            if node.type == "return_statement":
-                return_count += 1
-                if return_count > 1:
-                    summary["multiple_returns"] = True
-
-            if node.type == "goto_statement":
-                summary["uses_goto"] = True
+                if node.type == "goto_statement":
+                    summary["uses_goto"] = True
 
             for child in node.children:
                 traverse(child, active)
@@ -463,28 +459,26 @@ class TreeSitterAnalyzer(BaseAnalyzer):
                 declarator = node.child_by_field_name("declarator")
                 name_node = self._get_function_name(declarator)
                 active = name_node and name_node.text.decode() == function_name
-    
-            if not active:
-                return
-    
-            if node.type == "return_statement":
-                errors.append({
-                    "line": node.start_point[0] + 1,
-                    "type": "return"
-                })
-    
-            if node.type == "goto_statement":
-                errors.append({
-                    "line": node.start_point[0] + 1,
-                    "type": "goto"
-                })
-    
+
+            if active:
+                if node.type == "return_statement":
+                    errors.append({
+                        "line": node.start_point[0] + 1,
+                        "type": "return"
+                    })
+
+                if node.type == "goto_statement":
+                    errors.append({
+                        "line": node.start_point[0] + 1,
+                        "type": "goto"
+                    })
+
             for child in node.children:
                 traverse(child, active)
-    
+
         traverse(tree.root_node)
         return errors
-    
+
     def list_side_effects(self, file_path: str, function_name: str) -> dict[str, Any]:
         content, _ = self._read_file(file_path)
         tree = self.parser.parse(content)
@@ -501,22 +495,20 @@ class TreeSitterAnalyzer(BaseAnalyzer):
                 declarator = node.child_by_field_name("declarator")
                 name_node = self._get_function_name(declarator)
                 active = name_node and name_node.text.decode() == function_name
-    
-            if not active:
-                return
-    
-            if node.type == "call_expression":
-                fn = node.child_by_field_name("function")
-                if fn and fn.type == "identifier":
-                    name = fn.text.decode()
-                    if name in io_calls:
-                        effects["io"].add(name)
-                    if name == "malloc":
-                        effects["allocates_memory"] = True
-    
+
+            if active:
+                if node.type == "call_expression":
+                    fn = node.child_by_field_name("function")
+                    if fn and fn.type == "identifier":
+                        name = fn.text.decode()
+                        if name in io_calls:
+                            effects["io"].add(name)
+                        if name == "malloc":
+                            effects["allocates_memory"] = True
+
             for child in node.children:
                 traverse(child, active)
-    
+
         traverse(tree.root_node)
         effects["io"] = sorted(effects["io"])
         return effects

@@ -1,4 +1,6 @@
+import os
 from typing import Any
+from dotenv import load_dotenv
 from ..interface import (
     AnalysisResult,
     FunctionInfo,
@@ -7,7 +9,9 @@ from ..interface import (
 from .base import BaseAnalyzer
 from clang.cindex import Config
 
-path_clang_library = "/usr/lib/llvm-15/lib/libclang.so"
+load_dotenv()
+
+path_clang_library = os.getenv("LIBCLANG_PATH", "/usr/lib/llvm-18/lib/libclang.so.1")
 
 Config.set_library_file(path_clang_library)
 

@@ -364,5 +364,252 @@ class TestPcacheClang(PcacheTestMixin, unittest.TestCase):
     analyzer_name: Literal['clang'] = 'clang'
 
 
+class AdvancedFeaturesTestMixin:
+    """Mixin for testing advanced analyzer features (call graph, dependencies, etc.)."""
+
+    analyzer_name: Literal['tree-sitter', 'clang']
+    analyzer: CCodeAnalyzer
+    test_file: str
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up test fixtures"""
+        cls.analyzer = get_analyzer(cls.analyzer_name)
+        cls.test_file = os.path.join(
+            os.path.dirname(__file__),
+            'fixtures',
+            'sample.c'
+        )
+
+    def test_get_call_graph(self):
+        """Test call graph extraction"""
+        call_graph = self.analyzer.get_call_graph(self.test_file)
+
+        # Should be a dict mapping function names to list of called functions
+        self.assertIsInstance(call_graph, dict)
+
+        # main() calls add() and printf()
+        self.assertIn('main', call_graph)
+        self.assertIn('add', call_graph['main'])
+        self.assertIn('printf', call_graph['main'])
+
+        # print_hello() calls printf()
+        self.assertIn('print_hello', call_graph)
+        self.assertIn('printf', call_graph['print_hello'])
+
+        # add() and multiply() don't call other functions
+        self.assertIn('add', call_graph)
+        self.assertEqual(call_graph['add'], [])
+
+    def test_get_function_dependencies(self):
+        """Test function dependency extraction"""
+        deps = self.analyzer.get_function_dependencies(self.test_file, 'main')
+
+        self.assertIsInstance(deps, dict)
+        self.assertEqual(deps['function'], 'main')
+
+        # main() calls add() and printf()
+        self.assertIn('calls', deps)
+        self.assertIn('add', deps['calls'])
+        self.assertIn('printf', deps['calls'])
+
+    def test_get_function_dependencies_no_calls(self):
+        """Test function dependencies for function with no calls"""
+        deps = self.analyzer.get_function_dependencies(self.test_file, 'add')
+
+        self.assertEqual(deps['function'], 'add')
+        self.assertEqual(deps['calls'], [])
+
+    def test_summarize_function(self):
+        """Test function summary"""
+        summary = self.analyzer.summarize_function(self.test_file, 'main')
+
+        self.assertIsInstance(summary, dict)
+        self.assertEqual(summary['function'], 'main')
+        self.assertIn('allocates_memory', summary)
+        self.assertIn('frees_memory', summary)
+        self.assertIn('multiple_returns', summary)
+        self.assertIn('uses_goto', summary)
+
+        # main() doesn't allocate memory, free memory, use goto
+        self.assertFalse(summary['allocates_memory'])
+        self.assertFalse(summary['frees_memory'])
+        self.assertFalse(summary['uses_goto'])
+
+    def test_summarize_function_simple(self):
+        """Test function summary for simple function"""
+        summary = self.analyzer.summarize_function(self.test_file, 'add')
+
+        self.assertEqual(summary['function'], 'add')
+        self.assertFalse(summary['allocates_memory'])
+        self.assertFalse(summary['multiple_returns'])
+
+    def test_list_globals(self):
+        """Test listing global variables"""
+        globals_list = self.analyzer.list_globals(self.test_file)
+
+        self.assertIsInstance(globals_list, list)
+        # sample.c doesn't have explicit global variables at top level
+        # (just struct/enum definitions which are types, not variables)
+
+    def test_find_symbol(self):
+        """Test finding symbol occurrences"""
+        result = self.analyzer.find_symbol(self.test_file, 'add')
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result['symbol'], 'add')
+        self.assertIn('lines', result)
+        self.assertIsInstance(result['lines'], list)
+
+        # 'add' appears at function definition and call in main
+        self.assertGreaterEqual(len(result['lines']), 2)
+
+    def test_find_symbol_not_found(self):
+        """Test finding symbol that doesn't exist"""
+        result = self.analyzer.find_symbol(self.test_file, 'nonexistent_symbol')
+
+        self.assertEqual(result['symbol'], 'nonexistent_symbol')
+        self.assertEqual(result['lines'], [])
+
+    def test_find_symbol_printf(self):
+        """Test finding printf occurrences"""
+        result = self.analyzer.find_symbol(self.test_file, 'printf')
+
+        self.assertEqual(result['symbol'], 'printf')
+        # printf is called in print_hello and main
+        self.assertGreaterEqual(len(result['lines']), 2)
+
+    def test_get_error_handling_paths(self):
+        """Test error handling path detection"""
+        errors = self.analyzer.get_error_handling_paths(self.test_file, 'main')
+
+        self.assertIsInstance(errors, list)
+        # main() has one return statement
+        self.assertGreaterEqual(len(errors), 1)
+
+        # Check structure of error path entries
+        for error in errors:
+            self.assertIn('line', error)
+            self.assertIn('type', error)
+
+    def test_get_error_handling_paths_add(self):
+        """Test error handling for simple function"""
+        errors = self.analyzer.get_error_handling_paths(self.test_file, 'add')
+
+        # add() has one return statement
+        self.assertGreaterEqual(len(errors), 1)
+        return_entry = next((e for e in errors if e['type'] == 'return'), None)
+        self.assertIsNotNone(return_entry)
+
+    def test_list_side_effects(self):
+        """Test side effect detection"""
+        effects = self.analyzer.list_side_effects(self.test_file, 'print_hello')
+
+        self.assertIsInstance(effects, dict)
+        self.assertIn('io', effects)
+        self.assertIn('allocates_memory', effects)
+
+        # print_hello calls printf (I/O)
+        self.assertIn('printf', effects['io'])
+
+    def test_list_side_effects_no_io(self):
+        """Test side effects for function with no I/O"""
+        effects = self.analyzer.list_side_effects(self.test_file, 'add')
+
+        # add() has no I/O operations
+        self.assertEqual(effects['io'], [])
+        self.assertFalse(effects['allocates_memory'])
+
+    def test_list_side_effects_main(self):
+        """Test side effects for main function"""
+        effects = self.analyzer.list_side_effects(self.test_file, 'main')
+
+        # main() calls printf
+        self.assertIn('printf', effects['io'])
+
+
+class TestAdvancedFeaturesTreeSitter(AdvancedFeaturesTestMixin, unittest.TestCase):
+    """Test advanced features with TreeSitterAnalyzer"""
+    analyzer_name: Literal['tree-sitter'] = 'tree-sitter'
+
+
+class TestAdvancedFeaturesClang(AdvancedFeaturesTestMixin, unittest.TestCase):
+    """Test advanced features with ClangAnalyzer"""
+    analyzer_name: Literal['clang'] = 'clang'
+
+
+class AdvancedFeaturesBitvecTestMixin:
+    """Mixin for testing advanced features on bitvec.c (real SQLite code)."""
+
+    analyzer_name: Literal['tree-sitter', 'clang']
+    analyzer: CCodeAnalyzer
+    bitvec_file: str
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up test fixtures"""
+        cls.analyzer = get_analyzer(cls.analyzer_name)
+        cls.bitvec_file = os.path.join(
+            os.path.dirname(__file__),
+            'fixtures',
+            'bitvec.c'
+        )
+
+    def test_bitvec_call_graph(self):
+        """Test call graph on real SQLite code"""
+        call_graph = self.analyzer.get_call_graph(self.bitvec_file)
+
+        self.assertIsInstance(call_graph, dict)
+        # Should have entries for main functions
+        self.assertIn('sqlite3BitvecCreate', call_graph)
+
+    def test_bitvec_function_dependencies(self):
+        """Test function dependencies on real code"""
+        deps = self.analyzer.get_function_dependencies(
+            self.bitvec_file, 'sqlite3BitvecCreate'
+        )
+
+        self.assertEqual(deps['function'], 'sqlite3BitvecCreate')
+        self.assertIn('calls', deps)
+        self.assertIn('types', deps)
+
+    def test_bitvec_summarize_function(self):
+        """Test function summary on real code"""
+        summary = self.analyzer.summarize_function(
+            self.bitvec_file, 'sqlite3BitvecCreate'
+        )
+
+        self.assertEqual(summary['function'], 'sqlite3BitvecCreate')
+        # SQLite uses sqlite3MallocZero, not malloc directly
+        # So allocates_memory will be False (only detects malloc)
+        self.assertIn('allocates_memory', summary)
+        self.assertIn('frees_memory', summary)
+
+    def test_bitvec_find_symbol(self):
+        """Test finding symbol in real code"""
+        # 'p' is a common variable name in bitvec.c
+        result = self.analyzer.find_symbol(self.bitvec_file, 'p')
+
+        self.assertEqual(result['symbol'], 'p')
+        # 'p' appears many times throughout the file
+        self.assertGreater(len(result['lines']), 10)
+
+    def test_bitvec_list_globals(self):
+        """Test listing globals in real code"""
+        globals_list = self.analyzer.list_globals(self.bitvec_file)
+
+        self.assertIsInstance(globals_list, list)
+
+
+class TestAdvancedFeaturesBitvecTreeSitter(AdvancedFeaturesBitvecTestMixin, unittest.TestCase):
+    """Test advanced features on bitvec.c with TreeSitterAnalyzer"""
+    analyzer_name: Literal['tree-sitter'] = 'tree-sitter'
+
+
+class TestAdvancedFeaturesBitvecClang(AdvancedFeaturesBitvecTestMixin, unittest.TestCase):
+    """Test advanced features on bitvec.c with ClangAnalyzer"""
+    analyzer_name: Literal['clang'] = 'clang'
+
+
 if __name__ == '__main__':
     unittest.main()

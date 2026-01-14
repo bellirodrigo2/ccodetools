@@ -14,7 +14,9 @@
       "Bash(find:*)",
       "mcp__ccodetools__list_functions",
       "mcp__ccodetools__get_function_body",
-      "mcp__ccodetools__get_preprocessor_directives"
+      "mcp__ccodetools__get_preprocessor_directives",
+      "Bash(python3:*)",
+      "Bash(pip show:*)"
     ]
   }
 }
