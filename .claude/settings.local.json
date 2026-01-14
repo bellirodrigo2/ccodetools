@@ -16,7 +16,8 @@
       "mcp__ccodetools__get_function_body",
       "mcp__ccodetools__get_preprocessor_directives",
       "Bash(python3:*)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "mcp__ccodetools__analyze_c_file"
     ]
   }
 }
